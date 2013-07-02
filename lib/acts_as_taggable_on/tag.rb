@@ -2,8 +2,10 @@ module ActsAsTaggableOn
   class Tag < ::ActiveRecord::Base
     include ActsAsTaggableOn::Utils
 
-    scope :visible, :conditions => { :visible => true }
-  
+    def self.visible
+      where(visible: true)
+    end
+    
   def self.related items
     taggables = items.map(&:taggable)
     results = taggables.map { |item|   
