@@ -99,7 +99,7 @@ module ActsAsTaggableOn
   
 
   # gbi
-  named_scope :visible, :conditions => { :visible => true }
+  scope :visible, :conditions => { :visible => true }
   
   def self.related items
     taggables = items.map(&:taggable)
