@@ -2,6 +2,59 @@ module ActsAsTaggableOn
   class Tag < ::ActiveRecord::Base
     include ActsAsTaggableOn::Utils
 
+    scope :visible, :conditions => { :visible => true }
+  
+  def self.related items
+    taggables = items.map(&:taggable)
+    results = taggables.map { |item|   
+      item.tags.all({
+        :select => "name", 
+        :conditions => { :visible => true }
+        }) if item.present?
+      }.flatten.reject{|x| x.nil? }.map(&:name)
+    results.reject! { |x| @tag == x } 
+    results.sort.uniq
+  end
+  
+  def update_hidden_or_visibles
+    if related_hidden_ids.present?
+      related_tags.clear
+      hidden_tags = Tag.find(:all, :conditions => { :id => related_hidden_ids })
+      related_tags << hidden_tags if hidden_tags.present?
+    end
+    
+    if related_visible_ids.present?
+      related_visible_tags.clear
+      visible_tags = Tag.find(:all, :conditions => { :id => related_visible_ids })
+      related_visible_tags << visible_tags if visible_tags.present?
+    end
+  end
+  
+  attr_accessor :related_hidden_ids, :related_visible_ids
+  
+  def find_related_tags_and_update_articles
+    if related_tags.present?
+      a = Article.find_tagged_with(name)
+      a.map(&:save) if a.present?
+      l = LearningCurve.find_tagged_with(name)
+      l.map(&:save) if l.present?
+    end
+  end
+
+  def hidden?
+    !visible
+  end
+
+  default_scope :order => "name ASC"
+
+  has_many :related_hidden_tags, :foreign_key => "hidden_tag_id"
+  has_many :related_tags, :through => :related_hidden_tags, :source => :tag
+  has_many :visible_tag_relationships, :foreign_key => "tag_id", :class_name => "RelatedHiddenTag"
+  has_many :related_visible_tags, :through => :visible_tag_relationships, :source => :tag
+    
+  after_save :update_hidden_or_visibles
+  after_save :find_related_tags_and_update_articles
+
     attr_accessible :name if defined?(ActiveModel::MassAssignmentSecurity)
     
     ### ASSOCIATIONS:
@@ -96,60 +149,4 @@ module ActsAsTaggableOn
       end
     end
   end
-  
-
-  # gbi
-  scope :visible, :conditions => { :visible => true }
-  
-  def self.related items
-    taggables = items.map(&:taggable)
-    results = taggables.map { |item|   
-      item.tags.all({
-        :select => "name", 
-        :conditions => { :visible => true }
-        }) if item.present?
-      }.flatten.reject{|x| x.nil? }.map(&:name)
-    results.reject! { |x| @tag == x } 
-    results.sort.uniq
-  end
-  
-  def update_hidden_or_visibles
-    if related_hidden_ids.present?
-      related_tags.clear
-      hidden_tags = Tag.find(:all, :conditions => { :id => related_hidden_ids })
-      related_tags << hidden_tags if hidden_tags.present?
-    end
-    
-    if related_visible_ids.present?
-      related_visible_tags.clear
-      visible_tags = Tag.find(:all, :conditions => { :id => related_visible_ids })
-      related_visible_tags << visible_tags if visible_tags.present?
-    end
-  end
-  
-  attr_accessor :related_hidden_ids, :related_visible_ids
-  
-  def find_related_tags_and_update_articles
-    if related_tags.present?
-      a = Article.find_tagged_with(name)
-      a.map(&:save) if a.present?
-      l = LearningCurve.find_tagged_with(name)
-      l.map(&:save) if l.present?
-    end
-  end
-
-  def hidden?
-    !visible
-  end
-
-  default_scope :order => "name ASC"
-
-  has_many :related_hidden_tags, :foreign_key => "hidden_tag_id"
-  has_many :related_tags, :through => :related_hidden_tags, :source => :tag
-  has_many :visible_tag_relationships, :foreign_key => "tag_id", :class_name => "RelatedHiddenTag"
-  has_many :related_visible_tags, :through => :visible_tag_relationships, :source => :tag
-    
-  after_save :update_hidden_or_visibles
-  after_save :find_related_tags_and_update_articles
-
 end
